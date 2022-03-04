@@ -43,14 +43,23 @@ success_page = """
    <h1>Your secret data is here:</h1>
 """ % port
 
+# Important Data Structures We'll Need Globally
+# Define as objects or lists? 
+users = []
+secrets = []
+
 #### Helper functions
 # Initialize the server and the values
 def data_initializer():
     with open('passwords.txt') as f:
-      res = f.read().splitlines()
-      for line in res:
-          if query in line.lower():
-              return line + " IN"
+        res = f.read().splitlines()
+        for line in res:
+            users.append(line)
+    with open('secrets.txt') as f:
+        res = f.read().splitlines()
+        for line in res:
+            secrets.append(line)
+
 
 # Printing.
 def print_value(tag, value):
@@ -60,11 +69,14 @@ def print_value(tag, value):
     print("\"\"\"")
     print()
 
+
 # Signal handler for graceful exit
 def sigint_handler(sig, frame):
     print('Finishing up by closing listening socket...')
     sock.close()
     sys.exit(0)
+
+
 # Register the signal handler
 signal.signal(signal.SIGINT, sigint_handler)
 
@@ -73,8 +85,7 @@ signal.signal(signal.SIGINT, sigint_handler)
 # Read login credentials for all the users
 # Read secret data of all the users
 def get_secret(user_info):
-    
-
+    pass
 
 
 ### Loop to accept incoming HTTP connections and respond.
@@ -89,9 +100,7 @@ while True:
     print_value('headers', headers)
     print_value('entity body', body)
     login_info = ''
-    users = [
-        'username=allen&password=pass'
-    ]
+    users = ['username=allen&password=pass']
     if body != '':
         login_info = body
         print(login_info)
@@ -107,27 +116,27 @@ while True:
     elif login_info in users:
         html_content_to_send = success_page
         secret = get_secret(login_info)
-    else: 
+    else:
         html_content_to_send = bad_creds_page
     # But other possibilities exist, including
     # html_content_to_send = success_page + <secret>
     # html_content_to_send = bad_creds_page
     # html_content_to_send = logout_page
-    
+
     # (2) `headers_to_send` => add any additional headers
     # you'd like to send the client?
     # Right now, we don't send any extra headers.
     headers_to_send = ''
 
     # Construct and send the final response
-    response  = 'HTTP/1.1 200 OK\r\n'
+    response = 'HTTP/1.1 200 OK\r\n'
     response += headers_to_send
     response += 'Content-Type: text/html\r\n\r\n'
     response += html_content_to_send
-    print_value('response', response)    
+    print_value('response', response)
     client.send(response.encode('utf-8'))
     client.close()
-    
+
     print("Served one request/connection!")
     print
 
