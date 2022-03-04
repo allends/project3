@@ -44,13 +44,21 @@ success_page = """
 """ % port
 
 #### Helper functions
+# Initialize the server and the values
+def data_initializer():
+    with open('passwords.txt') as f:
+      res = f.read().splitlines()
+      for line in res:
+          if query in line.lower():
+              return line + " IN"
+
 # Printing.
 def print_value(tag, value):
-    print "Here is the", tag
-    print "\"\"\""
-    print value
-    print "\"\"\""
-    print
+    print("Here is the", tag)
+    print("\"\"\"")
+    print(value)
+    print("\"\"\"")
+    print()
 
 # Signal handler for graceful exit
 def sigint_handler(sig, frame):
@@ -64,7 +72,8 @@ signal.signal(signal.SIGINT, sigint_handler)
 # TODO: put your application logic here!
 # Read login credentials for all the users
 # Read secret data of all the users
-
+def get_secret(user_info):
+    
 
 
 
@@ -79,13 +88,13 @@ while True:
     body = '' if len(header_body) == 1 else header_body[1]
     print_value('headers', headers)
     print_value('entity body', body)
-    dict = {}
+    login_info = ''
+    users = [
+        'username=allen&password=pass'
+    ]
     if body != '':
-        values = body.split("&")
-        for value in values:
-            keyvalue = value.split("=")
-            dict[keyvalue[0]] = keyvalue[1]
-        print(dict)
+        login_info = body
+        print(login_info)
     # TODO: Put your application logic here!
     # Parse headers and body and perform various actions
 
@@ -93,10 +102,13 @@ while True:
     # (1) `html_content_to_send` => add the HTML content you'd
     # like to send to the client.
     # Right now, we just send the default login page.
-    if dict == {}:
+    if login_info == '':
         html_content_to_send = login_page
-    else:
+    elif login_info in users:
         html_content_to_send = success_page
+        secret = get_secret(login_info)
+    else: 
+        html_content_to_send = bad_creds_page
     # But other possibilities exist, including
     # html_content_to_send = success_page + <secret>
     # html_content_to_send = bad_creds_page
@@ -116,7 +128,7 @@ while True:
     client.send(response.encode('utf-8'))
     client.close()
     
-    print "Served one request/connection!"
+    print("Served one request/connection!")
     print
 
 # We will never actually get here.
