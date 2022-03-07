@@ -45,8 +45,9 @@ success_page = """
 
 # Important Data Structures We'll Need Globally
 # Define as objects or lists? 
-users = []
-secrets = []
+users = {}
+secrets = {}
+cookies = {}
 
 #### Helper functions
 # Initialize the server and the values
@@ -54,11 +55,15 @@ def data_initializer():
     with open('passwords.txt') as f:
         res = f.read().splitlines()
         for line in res:
-            users.append(line)
+            creds = line.split(' ')
+            users[creds[0]] = creds[1]
     with open('secrets.txt') as f:
         res = f.read().splitlines()
         for line in res:
-            secrets.append(line)
+            secret_data = line.split(' ')
+            secrets[secret_data[0]] = secret_data[1]
+    print(users)
+    print(secrets)
 
 
 # Printing.
@@ -80,16 +85,31 @@ def sigint_handler(sig, frame):
 # Register the signal handler
 signal.signal(signal.SIGINT, sigint_handler)
 
-
 # TODO: put your application logic here!
 # Read login credentials for all the users
 # Read secret data of all the users
 def get_secret(user_info):
-    pass
+    user, _ = headerparse(user_info)
+    return secrets[user]
 
+def headerparse(login_header):
+    def extract(input):
+        return input.split('=')[1]
+    fields = login_header.split('&')
+    key, value = map(extract, fields)
+    return key, value
+
+def authenticate(login_header):
+    if login_header == '':
+        return False
+    key, value = headerparse(login_header)
+    if key in users and users[key] == value:
+        return True
+    return False
 
 ### Loop to accept incoming HTTP connections and respond.
 while True:
+    data_initializer()
     client, addr = sock.accept()
     req = client.recv(1024)
 
@@ -100,10 +120,10 @@ while True:
     print_value('headers', headers)
     print_value('entity body', body)
     login_info = ''
-    users = ['username=allen&password=pass']
     if body != '':
         login_info = body
-        print(login_info)
+        if 'logout' in body:
+            login_info = ''
     # TODO: Put your application logic here!
     # Parse headers and body and perform various actions
 
@@ -111,11 +131,16 @@ while True:
     # (1) `html_content_to_send` => add the HTML content you'd
     # like to send to the client.
     # Right now, we just send the default login page.
+    headers_to_send = ''
     if login_info == '':
         html_content_to_send = login_page
-    elif login_info in users:
-        html_content_to_send = success_page
-        secret = get_secret(login_info)
+    elif authenticate(login_info):
+        html_content_to_send = success_page + get_secret(login_info)
+        username, _ = headerparse(login_info)
+        if username not in cookies:
+            rand_val = random.getrandbits(64)
+            headers_to_send = 'Set-Cookie: token=' + str(rand_val) + '\r\n'
+            cookies[username] = str(rand_val)
     else:
         html_content_to_send = bad_creds_page
     # But other possibilities exist, including
@@ -126,7 +151,7 @@ while True:
     # (2) `headers_to_send` => add any additional headers
     # you'd like to send the client?
     # Right now, we don't send any extra headers.
-    headers_to_send = ''
+    print(cookies)
 
     # Construct and send the final response
     response = 'HTTP/1.1 200 OK\r\n'
