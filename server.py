@@ -62,8 +62,6 @@ def data_initializer():
         for line in res:
             secret_data = line.split(' ')
             secrets[secret_data[0]] = secret_data[1]
-    print(users)
-    print(secrets)
 
 
 # Printing.
@@ -89,7 +87,11 @@ signal.signal(signal.SIGINT, sigint_handler)
 # Read login credentials for all the users
 # Read secret data of all the users
 def get_secret(user_info):
-    user, _ = headerparse(user_info)
+    if user_info == None:
+        return ''
+    user = user_info
+    if '=' in user_info:
+        user, _ = headerparse(user_info)
     return secrets[user]
 
 def headerparse(login_header):
@@ -107,42 +109,75 @@ def authenticate(login_header):
         return True
     return False
 
+def cookieauth(body):
+    user = body.split('=')[1]
+    for key, value in cookies.items():
+        if user == value:
+            return True, key 
+    return False, None 
+
+def updatecookies(user):
+    if user not in cookies:
+        rand_val = random.getrandbits(64)
+        headers_to_send = 'Set-Cookie: token=' + str(rand_val) + '\r\n'
+        cookies[user] = str(rand_val)
+        return headers_to_send
+    return '' 
+
+def getstatus(req):
+    req_lines = req.split('\r\n\r\n')
+    headers = req_lines[0]
+    body = '' if len(req_lines) == 1 else req_lines[1]
+    header_lines = headers.splitlines()
+
+    if 'logout' in body:
+        return 'rcookie', None
+
+    for header in header_lines:
+        if 'token' in header:
+            print('looking for cookie')
+            value = header.split(' ')[1]
+            cookie_result, user = cookieauth(value)
+            if cookie_result:
+                return 'success', user
+            else:
+                return 'error', None
+    if body == '':
+        return 'login', None 
+    if authenticate(body):
+        username, _ = headerparse(body)
+        return 'success', username 
+    return 'error', None
+
+
 ### Loop to accept incoming HTTP connections and respond.
 while True:
     data_initializer()
     client, addr = sock.accept()
     req = client.recv(1024)
+    headers_to_send = '' 
+    html_content_to_send = ''
 
     # Let's pick the headers and entity body apart
-    header_body = req.split('\r\n\r\n')
-    headers = header_body[0]
-    body = '' if len(header_body) == 1 else header_body[1]
-    print_value('headers', headers)
-    print_value('entity body', body)
-    login_info = ''
-    if body != '':
-        login_info = body
-        if 'logout' in body:
-            login_info = ''
     # TODO: Put your application logic here!
     # Parse headers and body and perform various actions
-
+    status, user = getstatus(req)
     # You need to set the variables:
     # (1) `html_content_to_send` => add the HTML content you'd
     # like to send to the client.
     # Right now, we just send the default login page.
-    headers_to_send = ''
-    if login_info == '':
+    if status == 'login':
         html_content_to_send = login_page
-    elif authenticate(login_info):
-        html_content_to_send = success_page + get_secret(login_info)
-        username, _ = headerparse(login_info)
-        if username not in cookies:
-            rand_val = random.getrandbits(64)
-            headers_to_send = 'Set-Cookie: token=' + str(rand_val) + '\r\n'
-            cookies[username] = str(rand_val)
-    else:
-        html_content_to_send = bad_creds_page
+    elif status == 'success':
+        headers_to_send += updatecookies(user)
+        html_content_to_send = success_page + get_secret(user)
+    elif status == 'error':
+        html_content_to_send = bad_creds_page 
+    elif status == 'rcookie':
+        print('removing cookie')
+        headers_to_send += 'Set-Cookie: token=; expires=Thu, 01 Jan 1970 00:00:00 GMT\r\n'  
+        html_content_to_send = login_page
+
     # But other possibilities exist, including
     # html_content_to_send = success_page + <secret>
     # html_content_to_send = bad_creds_page
@@ -151,18 +186,15 @@ while True:
     # (2) `headers_to_send` => add any additional headers
     # you'd like to send the client?
     # Right now, we don't send any extra headers.
-    print(cookies)
 
     # Construct and send the final response
     response = 'HTTP/1.1 200 OK\r\n'
     response += headers_to_send
     response += 'Content-Type: text/html\r\n\r\n'
     response += html_content_to_send
-    print_value('response', response)
     client.send(response.encode('utf-8'))
     client.close()
 
-    print("Served one request/connection!")
     print
 
 # We will never actually get here.
