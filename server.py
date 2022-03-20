@@ -88,7 +88,7 @@ signal.signal(signal.SIGINT, sigint_handler)
 # Read secret data of all the users
 # Parse through the response for both headers and body
 def request_parse(req):
-    req_lines = req.split('\r\n\r\n')
+    req_lines = req.decode().split('\r\n\r\n')
     headers = req_lines[0]
     body = '' if len(req_lines) == 1 else req_lines[1]
     return headers, body
